@@ -59,16 +59,13 @@ export default function RouteResult({ from, to }: RouteResultProps) {
         const urlParams = new URLSearchParams({ from, to });
         const res = await fetch(`/api/traffic?${urlParams.toString()}`);
         if (!res.ok) {
-          throw new Error('경로 데이터를 가져오는데 실패했습니다.');
+          const errData = await res.json();
+          throw new Error(errData.message || '경로 데이터를 가져오는데 실패했습니다.');
         }
         const data = await res.json();
         setTrafficData(data.data || null);
       } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('경로 데이터를 가져오는데 실패했습니다.');
-        }
+        setError(err instanceof Error ? err.message : '네트워크 오류가 발생했습니다.');
       } finally {
         setLoading(false);
       }
@@ -79,16 +76,17 @@ export default function RouteResult({ from, to }: RouteResultProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-        최적의 경로를 계산 중입니다...
+      <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '24px', marginBottom: '16px' }}>🛰️</div>
+        <div style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>실시간 교통 상황과 구글 탐색 경로를 결합 중...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: '24px', textAlign: 'center', color: 'red', background: '#ffe6e6', borderRadius: '8px' }}>
-        {error}
+      <div style={{ padding: '24px', textAlign: 'center', color: '#ff4d4f', background: '#fff2f0', borderRadius: '12px', border: '1px solid #ffccc7' }}>
+        <strong>⚠️ 안내:</strong> {error}
       </div>
     );
   }
@@ -97,136 +95,85 @@ export default function RouteResult({ from, to }: RouteResultProps) {
     const activeData = trafficData[activeTab];
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* Tab UI Elements */}
-        <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Tab Selection */}
+        <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-secondary)', padding: '6px', borderRadius: '14px' }}>
+          {(['transit', 'driving', 'taxi'] as TabMode[]).map((tab) => (
             <button
-              onClick={() => setActiveTab('transit')}
+              key={tab}
+              onClick={() => setActiveTab(tab)}
               style={{
-                flex: 1, padding: '12px', border: 'none', borderRadius: '8px 8px 0 0', cursor: 'pointer',
-                fontWeight: 'bold', fontSize: '15px',
-                background: activeTab === 'transit' ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                color: activeTab === 'transit' ? '#fff' : 'var(--text-primary)'
+                flex: 1, padding: '12px', border: 'none', borderRadius: '10px', cursor: 'pointer',
+                fontWeight: 'bold', fontSize: '14px', transition: 'all 0.2s',
+                background: activeTab === tab ? '#fff' : 'transparent',
+                color: activeTab === tab ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                boxShadow: activeTab === tab ? '0 4px 6px -1px rgba(0,0,0,0.1)' : 'none'
               }}
             >
-              🚌 대중교통
+              {tab === 'transit' ? '🚌 대중교통' : tab === 'driving' ? '🚗 자가용' : '🚕 택시'}
             </button>
-            <button
-              onClick={() => setActiveTab('driving')}
-              style={{
-                flex: 1, padding: '12px', border: 'none', borderRadius: '8px 8px 0 0', cursor: 'pointer',
-                fontWeight: 'bold', fontSize: '15px',
-                background: activeTab === 'driving' ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                color: activeTab === 'driving' ? '#fff' : 'var(--text-primary)'
-              }}
-            >
-              🚗 자가용
-            </button>
-            <button
-              onClick={() => setActiveTab('taxi')}
-              style={{
-                flex: 1, padding: '12px', border: 'none', borderRadius: '8px 8px 0 0', cursor: 'pointer',
-                fontWeight: 'bold', fontSize: '15px',
-                background: activeTab === 'taxi' ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                color: activeTab === 'taxi' ? '#fff' : 'var(--text-primary)'
-              }}
-            >
-              🚕 택시
-            </button>
+          ))}
         </div>
 
-        {/* Content Section */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
-          <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 'bold' }}>
-                {activeData.from} <br/><br/>➡️ {activeData.to}
-              </h3>
-              <p style={{ marginTop: '8px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                선택하신 <strong style={{color: 'var(--accent-primary)'}}>
-                 {activeTab === 'transit' ? '대중교통' : activeTab === 'driving' ? '자가용' : '택시'}
-                </strong> 경로 정보입니다.
-              </p>
+        {/* Info Card */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '20px', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
               
-              <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>누적 소요시간</span>
-                  <span style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>약 {activeData.totalTimeMinutes}분</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                  <div style={{ marginBottom: '4px' }}>분석된 경로 요약</div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                    {activeData.from.split(' (')[0]} → {activeData.to.split(' (')[0]}
+                  </div>
                 </div>
-                
-                {activeTab === 'transit' && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>예상 환승</span>
-                    <span style={{ fontWeight: 'bold' }}>{activeData.transfers}회</span>
-                  </div>
-                )}
-                
-                {activeData.cost > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>예상 비용</span>
-                    <span style={{ fontWeight: 'bold', color: '#ff5722' }}>{activeData.cost.toLocaleString()}원</span>
-                  </div>
-                )}
+                <div style={{ padding: '4px 8px', background: '#e6f7ff', color: '#1890ff', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #91d5ff' }}>
+                  실시간 TOPIS 반영
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', marginBottom: '20px' }}>
+                <span style={{ fontSize: '32px', fontWeight: '800', color: 'var(--accent-primary)' }}>{activeData.totalTimeMinutes}</span>
+                <span style={{ fontSize: '16px', fontWeight: '600', paddingBottom: '6px' }}>분 소요 예정</span>
               </div>
 
-              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {activeData.detailedLinks && activeData.detailedLinks.length > 0 ? (
-                  activeData.detailedLinks.map((item, idx) => {
-                    const isTransfer = item.roadName.includes('환승') || (item.transportMode === 'WALKING' && idx > 0 && idx < activeData.detailedLinks.length - 1);
-                    return (
-                      <div key={idx} style={{ 
-                          position: 'relative', paddingLeft: '24px', paddingBottom: '16px',
-                          borderLeft: idx === activeData.detailedLinks.length - 1 ? 'none' : '2px solid var(--border-color)'
-                      }}>
-                        <div style={{ 
-                            position: 'absolute', left: '-12px', top: '0', width: '24px', height: '24px', 
-                            background: isTransfer ? '#fffbeb' : 'var(--bg-primary)', 
-                            border: `2px solid ${isTransfer ? '#f59e0b' : 'var(--border-color)'}`, 
-                            borderRadius: '50%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px',
-                            zIndex: 1
-                        }}>
-                          {getTransportIcon(item.transportMode)}
-                        </div>
-                        <div style={{ 
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-                            background: isTransfer ? '#fffbeb' : 'transparent',
-                            padding: isTransfer ? '8px' : '0',
-                            borderRadius: '8px',
-                            marginLeft: isTransfer ? '-8px' : '0'
-                        }}>
-                          <div>
-                            <div style={{ fontWeight: 'bold', fontSize: '14px', color: isTransfer ? '#b45309' : 'var(--text-primary)' }}>
-                              {item.roadName}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                               {item.speed > 0 && item.transportMode !== 'WALKING' && <span>속도: {item.speed}km/h</span>}
-                               {item.speed > 0 && item.transportMode !== 'WALKING' && <span style={{margin: '0 4px'}}>|</span>}
-                               <span>약 {item.timeMin}분 소요</span>
-                            </div>
-                          </div>
-                          {item.arrivalInfo && (
-                            <div style={{ 
-                                padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
-                                background: item.arrivalInfo.includes('곧') || item.arrivalInfo.includes('진입') || item.arrivalInfo.includes('팁') ? '#fff5f5' : '#f0fdf4',
-                                color: item.arrivalInfo.includes('곧') || item.arrivalInfo.includes('진입') || item.arrivalInfo.includes('팁') ? '#e53e3e' : '#15803d',
-                                border: `1px solid ${item.arrivalInfo.includes('곧') || item.arrivalInfo.includes('진입') || item.arrivalInfo.includes('팁') ? '#feb2b2' : '#bbf7d0'}`
-                            }}>
-                               {item.arrivalInfo}
-                            </div>
-                          )}
-                        </div>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+                {activeTab === 'transit' && <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>환승 {activeData.transfers}회</div>}
+                {activeData.cost > 0 && <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>예상 {activeData.cost.toLocaleString()}원</div>}
+              </div>
+
+              {/* Timeline */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {activeData.detailedLinks.map((item, idx) => (
+                  <div key={idx} style={{ position: 'relative', paddingLeft: '32px', paddingBottom: '24px' }}>
+                    {/* Line */}
+                    {idx !== activeData.detailedLinks.length - 1 && (
+                      <div style={{ position: 'absolute', left: '11px', top: '24px', bottom: 0, width: '2px', background: 'var(--border-color)' }} />
+                    )}
+                    {/* Icon Dot */}
+                    <div style={{ 
+                      position: 'absolute', left: 0, top: 0, width: '24px', height: '24px', 
+                      borderRadius: '50%', background: 'var(--bg-primary)', border: '2px solid var(--border-color)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', zIndex: 2
+                    }}>
+                      {getTransportIcon(item.transportMode)}
+                    </div>
+                    {/* Text */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '2px' }}>{item.roadName}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>약 {item.timeMin}분 {item.arrivalInfo && `· ${item.arrivalInfo}`}</div>
                       </div>
-                    );
-                  })
-                ) : (
-                  <p>검색된 교통 구간 목록이 없습니다.</p>
-                )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-          <div style={{ flex: '1 1 400px', minHeight: '400px', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-            <MapUI from={from} to={to} mode={activeTab} />
+
+          {/* Map Section */}
+          <div style={{ width: '100%', height: '400px', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              <MapUI from={from} to={to} mode={activeTab} />
           </div>
         </div>
       </div>
@@ -234,8 +181,8 @@ export default function RouteResult({ from, to }: RouteResultProps) {
   }
 
   return (
-    <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-      방금 전 업데이트된 실시간 교통 정보 대기 중...
+    <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-secondary)', border: '2px dashed var(--border-color)', borderRadius: '16px' }}>
+      위의 양식을 입력하여 최적의 퇴근 경로를 확인하세요.
     </div>
   );
 }

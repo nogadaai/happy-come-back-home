@@ -14,6 +14,7 @@ export default function SearchForm({ onSearch }: { onSearch: (from: string, to: 
     bname: string;
     buildingName: string;
   }
+  
   const handleComplete = (data: PostcodeData) => {
     let fullAddress = data.address;
     let extraAddress = '';
@@ -36,59 +37,89 @@ export default function SearchForm({ onSearch }: { onSearch: (from: string, to: 
       alert('출발지와 목적지를 모두 입력해주세요.');
       return;
     }
-    console.log("Searching Route from:", from, "to:", to);
     onSearch(from, to);
   };
 
   return (
     <div style={{ position: 'relative' }}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>
-            출발지
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+            📍 출발지
           </label>
-          <input
-            type="text"
-            readOnly
-            placeholder="여기를 클릭하여 출발지를 검색하세요"
-            value={from}
-            onClick={() => setOpenPostcode('from')}
-            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              readOnly
+              placeholder="출발지를 검색하세요"
+              value={from}
+              onClick={() => setOpenPostcode('from')}
+              style={{ 
+                width: '100%', padding: '14px 16px', borderRadius: '12px', 
+                border: '2px solid var(--border-color)', 
+                background: 'var(--bg-primary)', color: 'var(--text-primary)', 
+                cursor: 'pointer', outline: 'none', transition: 'border-color 0.2s' 
+              }}
+            />
+          </div>
         </div>
-        <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>
-            목적지
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+            🏠 목적지
           </label>
-          <input
-            type="text"
-            readOnly
-            placeholder="여기를 클릭하여 목적지를 검색하세요"
-            value={to}
-            onClick={() => setOpenPostcode('to')}
-            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              readOnly
+              placeholder="목적지를 검색하세요"
+              value={to}
+              onClick={() => setOpenPostcode('to')}
+              style={{ 
+                width: '100%', padding: '14px 16px', borderRadius: '12px', 
+                border: '2px solid var(--border-color)', 
+                background: 'var(--bg-primary)', color: 'var(--text-primary)', 
+                cursor: 'pointer', outline: 'none', transition: 'border-color 0.2s' 
+              }}
+            />
+          </div>
         </div>
+
         <button
           type="submit"
-          className="btn-primary"
-          style={{ marginTop: '8px', padding: '12px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+          style={{ 
+            marginTop: '10px', padding: '16px', 
+            background: 'linear-gradient(135deg, var(--accent-primary) 0%, #4a90e2 100%)', 
+            color: '#fff', border: 'none', borderRadius: '12px', 
+            fontWeight: '700', fontSize: '16px', cursor: 'pointer',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}
         >
-          최단 경로 찾기
+          경로 검색 요약 보기
         </button>
       </form>
 
       {openPostcode && (
         <div style={{
-          position: 'absolute', top: '0', left: 0, width: '100%', zIndex: 100,
-          border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden',
-          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.3)'
+          position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          width: '90%', maxWidth: '500px', zIndex: 1000,
+          background: 'var(--bg-primary)', border: '1px solid var(--border-color)', 
+          borderRadius: '16px', overflow: 'hidden',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', backgroundColor: '#333', padding: '0.6rem' }}>
-            <button type="button" onClick={() => setOpenPostcode(null)} style={{ border: 'none', background: 'none', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>✕ 닫기</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+              <span style={{ fontWeight: 'bold' }}>주소 검색</span>
+              <button type="button" onClick={() => setOpenPostcode(null)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer', padding: '4px' }}>✕</button>
           </div>
-          <DaumPostcodeEmbed onComplete={handleComplete} style={{ height: '400px' }} />
+          <DaumPostcodeEmbed onComplete={handleComplete} style={{ height: '450px' }} />
         </div>
+      )}
+      
+      {openPostcode && (
+        <div 
+          onClick={() => setOpenPostcode(null)}
+          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 999 }} 
+        />
       )}
     </div>
   );

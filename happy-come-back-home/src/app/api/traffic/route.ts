@@ -1,106 +1,102 @@
 import { NextResponse } from 'next/server';
 import { fetchTopisData } from '../../../lib/api/topis';
+import { addSearchHistory } from '../../../lib/firebase';
 
-export const dynamic = 'force-dynamic'; // 필요 시 /api/traffic/route.ts 최상단에 추가
+export const dynamic = 'force-dynamic';
+
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const from = searchParams.get('from') || '알 수 없음';
-    const to = searchParams.get('to') || '알 수 없음';
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
 
-    console.log(`[API Search] from: ${from}, to: ${to}`);
-    
-    // SEOUL TOPIS에서 기본 데이터 가져오기 (1부터 5까지 링크)
-    let rawTrafficData: any[] = [];
-    try {
-      rawTrafficData = await fetchTopisData<any>('TrafficInfo', 1, 5);
-    } catch (e) {
-      console.warn("TOPIS Error, falling back to mock data:", e);
-      // API Key가 없거나(Netlify) TrafficInfo 명칭이 유효하지 않은 경우 안전하게 빈 배열 사용
-      rawTrafficData = Array(5).fill({}); 
+    if (!from || !to) {
+      return NextResponse.json({ success: false, message: '출발지와 목적지가 필요합니다.' }, { status: 400 });
     }
 
-    const buildTransitLinks = (data: any[], fromLoc: string, toLoc: string) => {
-      const walkSpeed = 4;
-      const busSpeed = Number(data[0]?.spd || 20);
-      const subwaySpeed = 45;
+    console.log(`[API Search] from: ${from}, to: ${to}`);
 
-      return [
-        {
-          linkId: 'TRANSIT-0', speed: walkSpeed, roadName: `${fromLoc} -> 인근 정류장 (도보)`,
-          timeMin: 7, transportMode: 'WALKING', arrivalInfo: ''
-        },
-        {
-          linkId: 'TRANSIT-1', speed: busSpeed, roadName: '인근 정류장 (버스 이용)',
-          timeMin: 12, transportMode: 'BUS', arrivalInfo: '3분 후 도착'
-        },
-        {
-          linkId: 'TRANSIT-2', speed: walkSpeed, roadName: '환승 구역 이동',
-          timeMin: 5, transportMode: 'WALKING', arrivalInfo: '환승 팁: 1번 출구 이용'
-        },
-        {
-          linkId: 'TRANSIT-3', speed: subwaySpeed, roadName: '지하철 노선 이용',
-          timeMin: 15, transportMode: 'SUBWAY', arrivalInfo: '곧 도착'
-        },
-        {
-          linkId: 'TRANSIT-4', speed: walkSpeed, roadName: `${toLoc} 도착 (도보 이동)`,
-          timeMin: 8, transportMode: 'WALKING', arrivalInfo: ''
-        }
-      ];
-    };
+    // 1. Google Maps Directions API 호출 (서버사이드)
+    // 한국 내에서는 DRIVING이 ZERO_RESULTS를 반환할 수 있으므로 실패 시 TRANSIT으로 재시도
+    let googleUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&key=${GOOGLE_MAPS_API_KEY}&mode=driving&language=ko`;
+    let googleRes = await fetch(googleUrl);
+    let googleData = await googleRes.json();
 
-    const processStandardLinks = (data: any[], mode: 'driving' | 'taxi') => {
-      const method = mode === 'taxi' ? '택시 이용' : '자가용 주행';
-      return data.map((item, index) => {
-        const speed = Number(item.spd || 30);
-        const dist = 1.2;
-        const timeMin = Math.round((dist / speed) * 60);
-        return {
-          linkId: item.link_id || `LINK-${index}`,
-          speed: speed,
-          roadName: `${item.road_nm || "도로 구간"} (${method})`,
-          timeMin: timeMin,
-          transportMode: mode === 'taxi' ? 'TAXI' : 'DRIVING',
-          arrivalInfo: '',
-        };
-      });
-    };
+    // DRIVING 실패 시 TRANSIT으로 재시도
+    if (googleData.status === 'ZERO_RESULTS') {
+      console.warn("[Google API] DRIVING failed, retrying with TRANSIT...");
+      googleUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&key=${GOOGLE_MAPS_API_KEY}&mode=transit&language=ko`;
+      googleRes = await fetch(googleUrl);
+      googleData = await googleRes.json();
+    }
 
-    const transitLinks = buildTransitLinks(rawTrafficData, from, to);
-    const drivingLinks = processStandardLinks(rawTrafficData, 'driving');
-    const taxiLinks = processStandardLinks(rawTrafficData, 'taxi');
+    if (googleData.status !== 'OK') {
+      console.error("[Google API Error]", googleData);
+      throw new Error(`Google Maps API Error: ${googleData.status}. 한국 내 차량 경로는 구글 맵에서 제한될 수 있습니다. 대중교통 경로를 확인해주세요.`);
+    }
 
-    const calculateTotalTime = (links: any[]) => links.reduce((acc, curr) => acc + curr.timeMin, 0);
+    const leg = googleData.routes[0].legs[0];
+    const baseDurationMin = Math.round(leg.duration.value / 60);
+
+    // 2. SEOUL TOPIS 실시간 교통량/속도 데이터 가져오기 (가중치 계산용)
+    let topisWeight = 1.0;
+    try {
+      const trafficData = await fetchTopisData<any>('TrafficInfo', 1, 20);
+      if (trafficData && trafficData.length > 0) {
+        const avgSpeed = trafficData.reduce((acc, curr) => acc + (Number(curr.spd) || 30), 0) / trafficData.length;
+        if (avgSpeed < 25) topisWeight = 1.35;
+        else if (avgSpeed < 35) topisWeight = 1.15;
+        else if (avgSpeed >= 50) topisWeight = 0.9;
+      }
+    } catch (e) {
+      console.warn("[TOPIS] Weight fetch failed, using 1.0", e);
+    }
+
+    const finalTimeMinutes = Math.round(baseDurationMin * topisWeight);
+
+    // 3. 응답 구조화
+    const detailedLinks = leg.steps.map((step: any, index: number) => ({
+      linkId: `STEP-${index}`,
+      speed: 0, 
+      roadName: step.html_instructions.replace(/<[^>]*>?/gm, ''),
+      timeMin: Math.round(step.duration.value / 60) || 1,
+      transportMode: step.travel_mode || 'DRIVING',
+      arrivalInfo: step.distance.text
+    }));
 
     const routeSummary = {
       transit: {
         from, to,
-        totalTimeMinutes: calculateTotalTime(transitLinks),
-        transfers: 1,
+        totalTimeMinutes: finalTimeMinutes,
+        transfers: googleData.routes[0].legs[0].steps.filter((s:any) => s.transit_details).length,
         cost: 1400,
-        detailedLinks: transitLinks,
+        detailedLinks, 
       },
       driving: {
         from, to,
-        totalTimeMinutes: calculateTotalTime(drivingLinks),
+        totalTimeMinutes: Math.round(finalTimeMinutes * 0.8), // 대략적 추정
         transfers: 0,
         cost: 0,
-        detailedLinks: drivingLinks,
+        detailedLinks: googleData.request?.travel_mode === 'DRIVING' ? detailedLinks : [],
       },
       taxi: {
         from, to,
-        totalTimeMinutes: Math.max(calculateTotalTime(drivingLinks) - 5, 5),
+        totalTimeMinutes: Math.max(Math.round(finalTimeMinutes * 0.8), 5),
         transfers: 0,
-        cost: 4800 + Math.round(calculateTotalTime(drivingLinks) * 200),
-        detailedLinks: taxiLinks,
+        cost: 4800 + Math.round(finalTimeMinutes * 350),
+        detailedLinks: [],
       },
     };
 
+    // 4. Firebase 기록
+    addSearchHistory(from, to, finalTimeMinutes).catch(err => console.error("[Firebase Error]", err));
+
     return NextResponse.json({ success: true, data: routeSummary });
   } catch (error: unknown) {
+    console.error("[API Error]", error);
     const errObj = error instanceof Error ? error : new Error('Unknown error');
     return NextResponse.json({ success: false, message: errObj.message }, { status: 500 });
   }
 }
-

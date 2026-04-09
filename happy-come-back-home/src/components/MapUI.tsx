@@ -24,70 +24,91 @@ export default function MapUI({ from, to, mode = 'driving' }: { from: string; to
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const fetchDirections = useCallback(async () => {
+  const fetchDirections = useCallback(async (targetMode: google.maps.TravelMode) => {
     if (!from || !to) return;
-    setErrorMsg(null);
+    
     try {
       const directionsService = new window.google.maps.DirectionsService();
-
-      const travelMode = mode === 'transit' 
-        ? window.google.maps.TravelMode.TRANSIT 
-        : window.google.maps.TravelMode.DRIVING;
-
       const result = await directionsService.route({
         origin: from,
         destination: to,
-        travelMode,
+        travelMode: targetMode,
       });
-
       setDirections(result);
+      setErrorMsg(null);
+      return true;
     } catch (err: any) {
-      console.error(err);
-      let msg = `[${mode}] 경로를 불러올 수 없습니다.`;
-      
-      if (err.code === 'ZERO_RESULTS') {
-        msg = '해당 구간의 경로를 찾을 수 없습니다. (국내 자가용 경로는 구글 맵에서 제한될 수 있습니다.)';
-      } else if (err.code === 'REQUEST_DENIED') {
-        msg = '구글 맵 Directions API 권한이 거부되었습니다. 콘솔 설정을 확인해주세요.';
-      } else if (err.code === 'OVER_QUERY_LIMIT') {
-        msg = 'API 호출 할당량을 초과했습니다.';
-      }
-      
-      setErrorMsg(msg);
-      setDirections(null);
+      console.warn(`[MapUI] Failed to load directions for ${targetMode}:`, err.code);
+      return false;
     }
-  }, [from, to, mode]);
+  }, [from, to]);
 
   useEffect(() => {
     if (isLoaded && from && to) {
-      fetchDirections();
+      const load = async () => {
+        const primaryMode = (mode === 'driving' || mode === 'taxi') 
+          ? window.google.maps.TravelMode.DRIVING 
+          : window.google.maps.TravelMode.TRANSIT;
+
+        const success = await fetchDirections(primaryMode);
+        
+        // 한국 내 DRIVING 실패 시 TRANSIT으로 자동 Fallback
+        if (!success && primaryMode === window.google.maps.TravelMode.DRIVING) {
+          console.info("[MapUI] Retrying with TRANSIT fallback...");
+          const fallbackSuccess = await fetchDirections(window.google.maps.TravelMode.TRANSIT);
+          if (!fallbackSuccess) {
+            setErrorMsg("경로를 찾을 수 없습니다. (한국 내 차량 탐색 제한)");
+          } else {
+             setErrorMsg("차량 경로 탐색이 제한되어 대중교통 경로를 표시합니다.");
+          }
+        } else if (!success) {
+          setErrorMsg("경로 데이터를 불러올 수 없습니다.");
+        }
+      };
+      load();
     }
-  }, [isLoaded, from, to, fetchDirections]);
+  }, [isLoaded, from, to, mode, fetchDirections]);
 
   if (!isLoaded) {
-    return <div style={{ minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Map Loading...</div>;
+    return <div style={{ minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Map Loading...</div>;
   }
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       {errorMsg && (
-        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, padding: 10, background: 'red', color: 'white', borderRadius: 4 }}>
-          {errorMsg}
+        <div style={{ 
+          position: 'absolute', top: 12, left: 12, right: 12, zIndex: 10, 
+          padding: '10px 14px', background: '#333', color: '#fff', 
+          borderRadius: '8px', fontSize: '12px', fontWeight: '500',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
+          opacity: 0.9
+        }}>
+          💡 {errorMsg}
         </div>
       )}
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
         zoom={11}
+        options={{
+          disableDefaultUI: false,
+          zoomControl: true,
+          styles: [
+            {
+              featureType: "poi",
+              elementType: "labels",
+              stylers: [{ visibility: "off" }]
+            }
+          ]
+        }}
       >
         {directions && (
           <DirectionsRenderer
             directions={directions}
             options={{
-              suppressMarkers: false,
               polylineOptions: {
-                strokeColor: '#0066FF',
-                strokeWeight: 5,
+                strokeColor: mode === 'driving' || mode === 'taxi' ? '#4A90E2' : '#34A853',
+                strokeWeight: 6,
                 strokeOpacity: 0.8
               }
             }}

@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -17,3 +17,21 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+/**
+ * 사용자 검색 이력을 Firestore에 저장
+ */
+export async function addSearchHistory(from: string, to: string, timeMinutes: number) {
+  try {
+    await addDoc(collection(db, "search_history"), {
+      from,
+      to,
+      timeMinutes,
+      timestamp: serverTimestamp(),
+    });
+    console.log("[Firebase] Search history saved successfully");
+  } catch (e) {
+    console.error("[Firebase] Failed to save search history:", e);
+  }
+}
+
