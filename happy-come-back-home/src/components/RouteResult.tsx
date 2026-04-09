@@ -16,9 +16,11 @@ export interface RouteModeData {
   cost: number;
   detailedLinks: {
     linkId: string;
-    speed: string;
+    speed: number;
     roadName: string;
     timeMin: number;
+    transportMode?: 'WALKING' | 'BUS' | 'SUBWAY' | 'DRIVING' | 'TAXI';
+    arrivalInfo?: string;
   }[];
 }
 
@@ -29,6 +31,17 @@ export interface RouteSummaryData {
 }
 
 type TabMode = 'transit' | 'driving' | 'taxi';
+
+const getTransportIcon = (mode?: string) => {
+  switch (mode) {
+    case 'WALKING': return '🚶';
+    case 'BUS': return '🚌';
+    case 'SUBWAY': return '🚇';
+    case 'DRIVING': return '🚗';
+    case 'TAXI': return '🚕';
+    default: return '📍';
+  }
+};
 
 export default function RouteResult({ from, to }: RouteResultProps) {
   const [loading, setLoading] = useState(false);
@@ -129,7 +142,7 @@ export default function RouteResult({ from, to }: RouteResultProps) {
               <h3 style={{ fontSize: '16px', fontWeight: 'bold' }}>
                 {activeData.from} <br/><br/>➡️ {activeData.to}
               </h3>
-              <p style={{ marginTop: '8px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+              <p style={{ marginTop: '8px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                 선택하신 <strong style={{color: 'var(--accent-primary)'}}>
                  {activeTab === 'transit' ? '대중교통' : activeTab === 'driving' ? '자가용' : '택시'}
                 </strong> 경로 정보입니다.
@@ -156,18 +169,60 @@ export default function RouteResult({ from, to }: RouteResultProps) {
                 )}
               </div>
 
-              <ul style={{ marginTop: '16px', listStyleType: 'disc', paddingLeft: '20px' }}>
+              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {activeData.detailedLinks && activeData.detailedLinks.length > 0 ? (
-                  activeData.detailedLinks.map((item, idx) => (
-                    <li key={idx} style={{ marginBottom: '8px', lineHeight: '1.4' }}>
-                      <span style={{ fontWeight: 'bold' }}>도로구간 {item.linkId.slice(-4)}</span> ({item.roadName})<br />
-                      속도: <strong style={{ color: Number(item.speed) < 20 ? 'red' : 'green' }}>{item.speed}km/h</strong> (약 {item.timeMin}분 소요)
-                    </li>
-                  ))
+                  activeData.detailedLinks.map((item, idx) => {
+                    const isTransfer = item.roadName.includes('환승') || (item.transportMode === 'WALKING' && idx > 0 && idx < activeData.detailedLinks.length - 1);
+                    return (
+                      <div key={idx} style={{ 
+                          position: 'relative', paddingLeft: '24px', paddingBottom: '16px',
+                          borderLeft: idx === activeData.detailedLinks.length - 1 ? 'none' : '2px solid var(--border-color)'
+                      }}>
+                        <div style={{ 
+                            position: 'absolute', left: '-12px', top: '0', width: '24px', height: '24px', 
+                            background: isTransfer ? '#fffbeb' : 'var(--bg-primary)', 
+                            border: `2px solid ${isTransfer ? '#f59e0b' : 'var(--border-color)'}`, 
+                            borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px',
+                            zIndex: 1
+                        }}>
+                          {getTransportIcon(item.transportMode)}
+                        </div>
+                        <div style={{ 
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                            background: isTransfer ? '#fffbeb' : 'transparent',
+                            padding: isTransfer ? '8px' : '0',
+                            borderRadius: '8px',
+                            marginLeft: isTransfer ? '-8px' : '0'
+                        }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', fontSize: '14px', color: isTransfer ? '#b45309' : 'var(--text-primary)' }}>
+                              {item.roadName}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                               {item.speed > 0 && item.transportMode !== 'WALKING' && <span>속도: {item.speed}km/h</span>}
+                               {item.speed > 0 && item.transportMode !== 'WALKING' && <span style={{margin: '0 4px'}}>|</span>}
+                               <span>약 {item.timeMin}분 소요</span>
+                            </div>
+                          </div>
+                          {item.arrivalInfo && (
+                            <div style={{ 
+                                padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
+                                background: item.arrivalInfo.includes('곧') || item.arrivalInfo.includes('진입') || item.arrivalInfo.includes('팁') ? '#fff5f5' : '#f0fdf4',
+                                color: item.arrivalInfo.includes('곧') || item.arrivalInfo.includes('진입') || item.arrivalInfo.includes('팁') ? '#e53e3e' : '#15803d',
+                                border: `1px solid ${item.arrivalInfo.includes('곧') || item.arrivalInfo.includes('진입') || item.arrivalInfo.includes('팁') ? '#feb2b2' : '#bbf7d0'}`
+                            }}>
+                               {item.arrivalInfo}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 ) : (
-                  <li>검색된 교통 구간 목록이 없습니다.</li>
+                  <p>검색된 교통 구간 목록이 없습니다.</p>
                 )}
-              </ul>
+              </div>
             </div>
           </div>
           <div style={{ flex: '1 1 400px', minHeight: '400px', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>

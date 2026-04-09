@@ -21,44 +21,80 @@ export async function GET(request: Request) {
       rawTrafficData = Array(5).fill({}); 
     }
 
-    // Agent 2: Data Processing Logic - 프론트엔드용 최적화 경로 계산 로직을 모의(Mock) 수행
-    let totalTimeMin = 0;
-    
-    const drivingProcessedLinks = rawTrafficData.map((item, index) => {
-      // 속도(spd) 기반으로 자가용 시간 대략적 계산 모의
-      const speed = Number(item.spd || 30);
-      const dist = 5; // 구간 길이 임의 설정 5km
-      const timeMin = Math.round((dist / speed) * 60);
-      totalTimeMin += timeMin;
+    const buildTransitLinks = (data: any[]) => {
+      const walkSpeed = 4;
+      const busSpeed = Number(data[0]?.spd || 20);
+      const subwaySpeed = 45;
 
-      return {
-        linkId: item.link_id || `MOCK-${index}`,
-        speed: item.spd || "0",
-        roadName: item.road_nm || "알 수 없는 도로",
-        timeMin: timeMin,
-      };
-    });
+      return [
+        {
+          linkId: 'TRANSIT-0', speed: walkSpeed, roadName: 'sk플래닛 -> 판교역 버스정류장 (도보)',
+          timeMin: 7, transportMode: 'WALKING', arrivalInfo: ''
+        },
+        {
+          linkId: 'TRANSIT-1', speed: busSpeed, roadName: '판교역 버스정류장 (721번 버스 이용)',
+          timeMin: 12, transportMode: 'BUS', arrivalInfo: '3분 후 도착'
+        },
+        {
+          linkId: 'TRANSIT-2', speed: walkSpeed, roadName: '판교역 (환승 이동)',
+          timeMin: 5, transportMode: 'WALKING', arrivalInfo: '환승 팁: 1번 출구 이용'
+        },
+        {
+          linkId: 'TRANSIT-3', speed: subwaySpeed, roadName: '2호선 지하철 (건대입구역 방면)',
+          timeMin: 15, transportMode: 'SUBWAY', arrivalInfo: '곧 도착'
+        },
+        {
+          linkId: 'TRANSIT-4', speed: walkSpeed, roadName: '건국대학교 정문 (도보 이동)',
+          timeMin: 8, transportMode: 'WALKING', arrivalInfo: ''
+        }
+      ];
+    };
 
-    const drivingTime = totalTimeMin;
-    const transitTime = Math.round(totalTimeMin * 1.25 + 10); // 대중교통은 1.25배 + 10분 마진
-    const taxiTime = Math.max(drivingTime - 5, 0); // 택시는 자가용보다 약간 빠르다고 가정
-    
-    const taxiCost = 4800 + Math.round(drivingTime * 200); // 택시비 목업: 기본요금 + 분당 가산금
-    const transitCost = 1400; // 버스/지하철 기본운임
+    const processStandardLinks = (data: any[], mode: 'driving' | 'taxi') => {
+      const method = mode === 'taxi' ? '택시 이용' : '자가용 주행';
+      return data.map((item, index) => {
+        const speed = Number(item.spd || 30);
+        const dist = 1.2;
+        const timeMin = Math.round((dist / speed) * 60);
+        return {
+          linkId: item.link_id || `LINK-${index}`,
+          speed: speed,
+          roadName: `${item.road_nm || "도로 구간"} (${method})`,
+          timeMin: timeMin,
+          transportMode: mode === 'taxi' ? 'TAXI' : 'DRIVING',
+          arrivalInfo: '',
+        };
+      });
+    };
 
-    const buildModeData = (modeTotalTime: number, cost: number, transfers: number) => ({
-      from,
-      to,
-      totalTimeMinutes: modeTotalTime,
-      transfers,
-      cost,
-      detailedLinks: drivingProcessedLinks,
-    });
+    const transitLinks = buildTransitLinks(rawTrafficData);
+    const drivingLinks = processStandardLinks(rawTrafficData, 'driving');
+    const taxiLinks = processStandardLinks(rawTrafficData, 'taxi');
+
+    const calculateTotalTime = (links: any[]) => links.reduce((acc, curr) => acc + curr.timeMin, 0);
 
     const routeSummary = {
-      transit: buildModeData(transitTime, transitCost, Math.floor(Math.random() * 2) + 1), // 환승 1~2회 모의
-      driving: buildModeData(drivingTime, 0, 0),
-      taxi: buildModeData(taxiTime, taxiCost, 0),
+      transit: {
+        from, to,
+        totalTimeMinutes: calculateTotalTime(transitLinks),
+        transfers: 1,
+        cost: 1400,
+        detailedLinks: transitLinks,
+      },
+      driving: {
+        from, to,
+        totalTimeMinutes: calculateTotalTime(drivingLinks),
+        transfers: 0,
+        cost: 0,
+        detailedLinks: drivingLinks,
+      },
+      taxi: {
+        from, to,
+        totalTimeMinutes: Math.max(calculateTotalTime(drivingLinks) - 5, 5),
+        transfers: 0,
+        cost: 4800 + Math.round(calculateTotalTime(drivingLinks) * 200),
+        detailedLinks: taxiLinks,
+      },
     };
 
     return NextResponse.json({ success: true, data: routeSummary });
