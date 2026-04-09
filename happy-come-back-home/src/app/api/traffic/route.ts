@@ -12,7 +12,14 @@ export async function GET(request: Request) {
     console.log(`[API Search] from: ${from}, to: ${to}`);
     
     // SEOUL TOPIS에서 기본 데이터 가져오기 (1부터 5까지 링크)
-    const rawTrafficData = await fetchTopisData<any>('TrafficInfo', 1, 5);
+    let rawTrafficData: any[] = [];
+    try {
+      rawTrafficData = await fetchTopisData<any>('TrafficInfo', 1, 5);
+    } catch (e) {
+      console.warn("TOPIS Error, falling back to mock data:", e);
+      // API Key가 없거나(Netlify) TrafficInfo 명칭이 유효하지 않은 경우 안전하게 빈 배열 사용
+      rawTrafficData = Array(5).fill({}); 
+    }
 
     // Agent 2: Data Processing Logic - 프론트엔드용 최적화 경로 계산 로직을 모의(Mock) 수행
     let totalTimeMin = 0;
