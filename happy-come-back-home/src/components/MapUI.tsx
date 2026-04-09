@@ -41,10 +41,20 @@ export default function MapUI({ from, to, mode = 'driving' }: { from: string; to
       });
 
       setDirections(result);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err);
-      setErrorMsg(`[${mode}] 출발지 또는 목적지의 경로를 찾을 수 없습니다.`);
-      // If transit fails, we don't fallback to driving automatically anymore as the user specifically requested a tab
+      let msg = `[${mode}] 경로를 불러올 수 없습니다.`;
+      
+      if (err.code === 'ZERO_RESULTS') {
+        msg = '해당 구간의 경로를 찾을 수 없습니다. (국내 자가용 경로는 구글 맵에서 제한될 수 있습니다.)';
+      } else if (err.code === 'REQUEST_DENIED') {
+        msg = '구글 맵 Directions API 권한이 거부되었습니다. 콘솔 설정을 확인해주세요.';
+      } else if (err.code === 'OVER_QUERY_LIMIT') {
+        msg = 'API 호출 할당량을 초과했습니다.';
+      }
+      
+      setErrorMsg(msg);
+      setDirections(null);
     }
   }, [from, to, mode]);
 
