@@ -1,0 +1,4 @@
+[build]
+  base = "happy-come-back-home"
+  command = "npm run build"
+  publish = ".next"
