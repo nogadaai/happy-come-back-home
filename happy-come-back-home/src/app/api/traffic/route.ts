@@ -21,30 +21,30 @@ export async function GET(request: Request) {
       rawTrafficData = Array(5).fill({}); 
     }
 
-    const buildTransitLinks = (data: any[]) => {
+    const buildTransitLinks = (data: any[], fromLoc: string, toLoc: string) => {
       const walkSpeed = 4;
       const busSpeed = Number(data[0]?.spd || 20);
       const subwaySpeed = 45;
 
       return [
         {
-          linkId: 'TRANSIT-0', speed: walkSpeed, roadName: 'sk플래닛 -> 판교역 버스정류장 (도보)',
+          linkId: 'TRANSIT-0', speed: walkSpeed, roadName: `${fromLoc} -> 인근 정류장 (도보)`,
           timeMin: 7, transportMode: 'WALKING', arrivalInfo: ''
         },
         {
-          linkId: 'TRANSIT-1', speed: busSpeed, roadName: '판교역 버스정류장 (721번 버스 이용)',
+          linkId: 'TRANSIT-1', speed: busSpeed, roadName: '인근 정류장 (버스 이용)',
           timeMin: 12, transportMode: 'BUS', arrivalInfo: '3분 후 도착'
         },
         {
-          linkId: 'TRANSIT-2', speed: walkSpeed, roadName: '판교역 (환승 이동)',
+          linkId: 'TRANSIT-2', speed: walkSpeed, roadName: '환승 구역 이동',
           timeMin: 5, transportMode: 'WALKING', arrivalInfo: '환승 팁: 1번 출구 이용'
         },
         {
-          linkId: 'TRANSIT-3', speed: subwaySpeed, roadName: '2호선 지하철 (건대입구역 방면)',
+          linkId: 'TRANSIT-3', speed: subwaySpeed, roadName: '지하철 노선 이용',
           timeMin: 15, transportMode: 'SUBWAY', arrivalInfo: '곧 도착'
         },
         {
-          linkId: 'TRANSIT-4', speed: walkSpeed, roadName: '건국대학교 정문 (도보 이동)',
+          linkId: 'TRANSIT-4', speed: walkSpeed, roadName: `${toLoc} 도착 (도보 이동)`,
           timeMin: 8, transportMode: 'WALKING', arrivalInfo: ''
         }
       ];
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
       });
     };
 
-    const transitLinks = buildTransitLinks(rawTrafficData);
+    const transitLinks = buildTransitLinks(rawTrafficData, from, to);
     const drivingLinks = processStandardLinks(rawTrafficData, 'driving');
     const taxiLinks = processStandardLinks(rawTrafficData, 'taxi');
 
