@@ -18,7 +18,7 @@ export default function Home() {
           Happy Come Back Home
         </h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: '8px' }}>
-          7시 전에 밥 먹으러 가자!
+          저녁이 있는 삶
         </p>
       </header>
 
