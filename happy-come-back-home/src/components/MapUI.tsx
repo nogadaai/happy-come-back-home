@@ -15,7 +15,7 @@ const center = {
   lng: 126.9780 // Default to Seoul
 };
 
-export default function MapUI({ from, to }: { from: string; to: string }) {
+export default function MapUI({ from, to, mode = 'driving' }: { from: string; to: string; mode?: 'transit' | 'driving' | 'taxi' }) {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
@@ -26,51 +26,33 @@ export default function MapUI({ from, to }: { from: string; to: string }) {
 
   const fetchDirections = useCallback(async () => {
     if (!from || !to) return;
+    setErrorMsg(null);
     try {
       const directionsService = new window.google.maps.DirectionsService();
+
+      const travelMode = mode === 'transit' 
+        ? window.google.maps.TravelMode.TRANSIT 
+        : window.google.maps.TravelMode.DRIVING;
 
       const result = await directionsService.route({
         origin: from,
         destination: to,
-        travelMode: window.google.maps.TravelMode.TRANSIT, // Use TRANSIT or DRIVING based on what gives best traffic
-        // Since Google Maps in Korea might only support TRANSIT officially for directions easily, let's try TRANSIT.
-        // Actually, for traffic and shortest path, DRIVING is usually requested.
+        travelMode,
       });
 
       setDirections(result);
     } catch (err: unknown) {
       console.error(err);
-      setErrorMsg('출발지 또는 목적지의 경로를 찾을 수 없습니다.');
+      setErrorMsg(`[${mode}] 출발지 또는 목적지의 경로를 찾을 수 없습니다.`);
+      // If transit fails, we don't fallback to driving automatically anymore as the user specifically requested a tab
     }
-  }, [from, to]);
-
-  // DRIVING routing in Korea via Google Maps API might fail due to local regulations (often only Transit works). 
-  // Let's use DRIVING first, if it fails fallback to TRANSIT.
-  const fetchDrivingDirections = useCallback(async () => {
-    if (!from || !to) return;
-    setErrorMsg(null);
-    try {
-      const directionsService = new window.google.maps.DirectionsService();
-
-      const result = await directionsService.route({
-        origin: from,
-        destination: to,
-        travelMode: window.google.maps.TravelMode.DRIVING,
-      });
-
-      setDirections(result);
-    } catch (err: unknown) {
-      console.warn("Driving route failed, attempting transit...", err);
-      fetchDirections();
-    }
-  }, [from, to, fetchDirections]);
+  }, [from, to, mode]);
 
   useEffect(() => {
     if (isLoaded && from && to) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchDrivingDirections();
+      fetchDirections();
     }
-  }, [isLoaded, from, to, fetchDrivingDirections]);
+  }, [isLoaded, from, to, fetchDirections]);
 
   if (!isLoaded) {
     return <div style={{ minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Map Loading...</div>;
